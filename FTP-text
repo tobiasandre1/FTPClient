@@ -1,0 +1,50 @@
+#include <sys/types.h>
+#include <sys/socket.h>
+#include <netinet/in.h>
+#include <arpa/inet.h>
+#include <netdb.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <unistd.h> /* close */
+#include <string.h>
+
+
+#define SERV_PORT 21
+#define MAX_MSG 100
+
+int main(int argc, char *argv[])  {
+	  int sd,servlen, n;
+	  struct sockaddr_in localAddr, servaddr;
+	  struct hostent *h;
+char buffer[4096];
+char buffer1[4096]; //dette er buffersend bare i et andet navn 4096 er størrelse på bufferen
+
+	//Create a socket for the client
+	//If sd<0 there was an error in the creation of the socket
+	if ((sd = socket (AF_INET, SOCK_STREAM, 0)) <0)
+	{ perror("Problem in creating the socket"); //exit(2);
+	}
+
+	//Creation of the socket
+	memset(&servaddr, 0, sizeof(servaddr));
+	servaddr.sin_family = AF_INET;
+	servaddr.sin_addr.s_addr= inet_addr("130.226.195.126"); // her skulle der stå argv[1] ved ipadressen dog erstattet vi den med ip addressen til den server vi skal kommunikere med
+	// servaddr.sin_port = htons(portno); //convert to big-endian order
+	servaddr.sin_port = htons(SERV_PORT); //convert to big-endian order
+
+	//connect server method
+	 exit(1);
+
+
+	//code for receivind statement ""
+	n = recv(sd, buffer, sizeof(buffer), 0);
+	buffer[n]='\0';
+	printf("%s",buffer);
+
+	if( fgets (buffer1,60, stdin)!=NULL ) {
+	/* writing content to stdout */
+	puts(buffer1);
+	}
+	strcat(buffer1,"\r\n"); send(sd,buffer1,strlen(buffer1),0);
+
+}
