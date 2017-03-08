@@ -22,11 +22,15 @@
 
 using namespace std;
 
-int errorCheckWSAStartup(int check);						//Make sure WSAStartup worked correctly
+void errorCheckWSAStartup(int check);						//Make sure WSAStartup worked correctly
 struct sockaddr_in createSocket(int port, char ip[]);		//Creates a new socket
 void errorCheckConnect(int check);							//Make sure connect worked correctly
+
+//Functions for FTP server operations
 void sendUserInput(char buffer[], int sd);					//Let user type in command line and send data to socket
+void sendString(char buffer[], int bufferSize, int sd);		//Sends a string to the FTP server
 void receive(char buffer[], int bufferSize, int sd);		//Receive data from socket
+void login(char buffer[], int bufferSize, int sd);
 
 #define SERV_PORT 21
 #define MAX_MSG 100
@@ -42,7 +46,7 @@ int main(int argc, char *argv[])  {
 	errorCheckWSAStartup(err); //Check if WSAStartup worked correctly
 
 
-	int sd, rc, port = SERV_PORT;
+	int sd, rc, port;
 	struct sockaddr_in servaddr;
 	char buffer[4096];	//buffer for sending and receiving data
 
@@ -53,28 +57,31 @@ int main(int argc, char *argv[])  {
 		perror("Problem in creating the socket"); //exit(2);
 	}
 	
+	port = SERV_PORT;
 	servaddr = createSocket(port, "130.226.195.126"); //Initialize socket
 
 	//connect server method
 	rc = connect(sd, (struct sockaddr *) &servaddr, sizeof(servaddr));
 	errorCheckConnect(rc);
 
+	receive(buffer, sizeof(buffer), sd);
+	login(buffer, sizeof(buffer), sd);
+
 	while (1){
-		receive(buffer, sizeof(buffer), sd); //Recieve data from socket
 		sendUserInput(buffer, sd); //Let user type in the command line and send the data to the socket
+		receive(buffer, sizeof(buffer), sd); //Recieve data from socket
 
 	}
 
 }
 
-int errorCheckWSAStartup(int check){
+void errorCheckWSAStartup(int check){
 	if (check != 0) {
 		/* Tell the user that we could not find a usable */
 		/* Winsock DLL.                                  */
 		printf("WSAStartup failed with error: %d\n", check);
-		return 1;
+		exit(1);
 	}
-	return 0;
 }
 
 struct sockaddr_in createSocket(int port, char ip[]){
@@ -105,6 +112,11 @@ void sendUserInput(char buffer[], int sd){
 	send(sd, buffer, strlen(buffer), 0);
 }
 
+void sendString(char buffer[], int bufferSize, int sd){
+	//strcat(buffer, "\r\n");
+	send(sd, buffer, bufferSize, 0);
+}
+
 
 void receive(char buffer[], int bufferSize, int sd){
 	//code for receivind statement ""
@@ -112,4 +124,15 @@ void receive(char buffer[], int bufferSize, int sd){
 	n = recv(sd, buffer, bufferSize, 0);
 	buffer[n] = '\0';
 	printf("%s", buffer);
+}
+
+void login(char buffer[], int bufferSize, int sd){
+	sendString("USER anonymous\r\n", strlen("USER anonymous\r\n"), sd);
+	receive(buffer, bufferSize, sd);
+	sendString("PASS s@dtu.dk\r\n", strlen("PASS s@dtu.dk\r\n"), sd);
+	receive(buffer, bufferSize, sd);
+}
+
+int getPassivePort(){
+	return 0;
 }
