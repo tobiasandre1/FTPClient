@@ -38,8 +38,17 @@ int openPassivePort(char buffer[], int bufferSize, int sd);
 #define MAX_MSG 100
 
 int main(int argc, char *argv[])  {
+	/*
+	ftp servers:
+	ftp://ftp.gnupg.dk
+	"ftp.gnupg.dk"
+	"82.180.28.130"
+	"130.226.195.126"
+	*/
+
 
 	//Startup for winsock
+	//The following lines of code are necessary for sockets to work on windows
 	WORD wVersionRequested = 0x0101;
 	WSADATA wsaData;
 	int err;
@@ -48,44 +57,91 @@ int main(int argc, char *argv[])  {
 	errorCheckWSAStartup(err); //Check if WSAStartup worked correctly
 
 
-	int sd, sd2, rc, rc2, port;
-	struct sockaddr_in servaddr, passaddr;
-	char buffer[4096];	//buffer for sending and receiving data
+	int sd, sd2, sd3, rc, rc2, rc3, port; //Variable declaration
+	struct sockaddr_in servaddr, passaddr, passaddr2; //Variable declaration, but these are socket adress structs
+	char buffer[4096];	//buffer for receiving data (is used to send with sendUserInput, but our program is not meant to accept user inputs, so that won't matter)
+	char bufferData[4096], bufferData2[4096];
 
 	//Create a socket for the client
 	//If sd<0 there was an error in the creation of the socket
-	if ((sd = socket(AF_INET, SOCK_STREAM, 0)) <0)
+	if ((sd = socket(AF_INET, SOCK_STREAM, 0)) <0) //socket(address family, data stream) and an error check 
 	{
 		perror("Problem in creating the socket"); //exit(2);
 	}
 	
-	port = SERV_PORT;
-	servaddr = createSocket(port, argv[0] != NULL ? "130.226.195.126" : argv[0]); //Initialize socket
+	port = SERV_PORT; //Set port of connection to be 21
+	servaddr = createSocket(port, "204.76.241.31"); //Initialize servaddr struct (the address the socket will communicate with 
 
 	//connect server method
-	rc = connect(sd, (struct sockaddr *) &servaddr, sizeof(servaddr));
-	errorCheckConnect(rc);
-
-	receive(buffer, sizeof(buffer), sd);
-	login(buffer, sizeof(buffer), sd);
-
-	port = openPassivePort(buffer, sizeof(buffer), sd);
-
+	rc = connect(sd, (struct sockaddr *) &servaddr, sizeof(servaddr)); //connects with socket to the ftp server.
+	errorCheckConnect(rc); //Moved the if statement that error checks the connection to a function
+	
+	
+	receive(buffer, sizeof(buffer), sd); //Receive response from server
+	login(buffer, sizeof(buffer), sd); //Sequence of sendString and receive calls that logs in as USER anonymous with the PASS s@dtu.dk
+	
+	port = openPassivePort(buffer, sizeof(buffer), sd); //Get the passive port number with string manipulation of answer from PASV
+	
 	//Create new socket and connect again
 	if ((sd2 = socket(AF_INET, SOCK_STREAM, 0)) <0)
 	{
 		perror("Problem in creating the socket"); //exit(2);
 	}
-	passaddr = createSocket(port, argv[0] != NULL ? "130.226.195.126" : argv[0]); //Initialize socket
+	passaddr = createSocket(port, "204.76.241.31"); //Initialize socket
 	rc2 = connect(sd2, (struct sockaddr *) &passaddr, sizeof(passaddr));
 	errorCheckConnect(rc2);
 
+	/* Lines of code relevant for data transfer
+	sendString("RETR public\r\n", strlen("RETR public\r\n"), sd);
+	receive(buffer, sizeof(buffer), sd); //Recieve data from socket
+	receive(bufferData, sizeof(bufferData), sd2); //Get file data from socket
+	*/
+
+	//sendString("RETR README.txt\r\n", strlen("RETR README.txt\r\n"), sd);
+	sendString("RETR /pub/tbw/OROP_data_20170302.txt\r\n", strlen("RETR /pub/tbw/OROP_data_20170302.txt\r\n"), sd);
+	receive(buffer, sizeof(buffer), sd); //Recieve data from socket
+	system("pause");
+	receive(bufferData, sizeof(bufferData), sd2); //Recieve file data from socket
+	sendString("NOOP\r\n", strlen("NOOP\r\n"), sd);
+	receive(buffer, sizeof(buffer), sd); //Recieve data from socket
+	receive(buffer, sizeof(buffer), sd); //Recieve data from socket
+	
+	system("pause");
+
+	sendString("APPE WHAT\r\n", strlen("APPE WHAT\r\n"), sd); //TRYING TO UPLOAD FILE WITH APPEND (THIS WOULD BE A .txt FILE CONTAINING THE WORD WHAT)
+	receive(buffer, sizeof(buffer), sd); //Receive response from server //PERMISSION DENIED//
+
+	port = openPassivePort(buffer, sizeof(buffer), sd);
+	//Create new socket and connect again
+	if ((sd3 = socket(AF_INET, SOCK_STREAM, 0)) <0)
+	{
+		perror("Problem in creating the socket"); //exit(2);
+	}
+	passaddr2 = createSocket(port, "204.76.241.31"); //Initialize socket
+	rc3 = connect(sd3, (struct sockaddr *) &passaddr2, sizeof(passaddr2));
+	errorCheckConnect(rc3);
+	
+	sendString("RETR README.txt\r\n", strlen("RETR README.txt\r\n"), sd3);
+	receive(buffer, sizeof(buffer), sd); //Recieve data from socket
+	system("pause");
+	receive(bufferData2, sizeof(bufferData2), sd3); //Recieve file data from socket
+	//sendString("NOOP\r\n", strlen("NOOP\r\n"), sd);
+	//receive(buffer, sizeof(buffer), sd); //Recieve data from socket
 	//receive(buffer, sizeof(buffer), sd); //Recieve data from socket
 
+	/*
+	sendString("CWD /pub/outgoing\r\n", strlen("CWD /pub/outgoing\r\n"), sd);
+	receive(buffer, sizeof(buffer), sd); //Recieve data from socket
+	receive(buffer, sizeof(buffer), sd); //Recieve data from socket
+	*/
 
+
+	
 	while (1){
 		sendUserInput(buffer, sd); //Let user type in the command line and send the data to the socket
 		receive(buffer, sizeof(buffer), sd); //Recieve data from socket
+		receive(bufferData, sizeof(bufferData), sd2);
+
 
 	}
 
@@ -149,7 +205,10 @@ void receive(char buffer[], int bufferSize, int sd){
 void login(char buffer[], int bufferSize, int sd){
 	sendString("USER anonymous\r\n", strlen("USER anonymous\r\n"), sd);
 	receive(buffer, bufferSize, sd);
-	sendString("PASS s@dtu.dk\r\n", strlen("PASS s@dtu.dk\r\n"), sd);
+	while (buffer[0] == '2' && buffer[1] == '2' && buffer[2] == '0'){
+		receive(buffer, bufferSize, sd);
+	}
+	sendString("PASS -s@dtu.dk\r\n", strlen("PASS -s@dtu.dk\r\n"), sd);
 	receive(buffer, bufferSize, sd);
 }
 
