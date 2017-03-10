@@ -128,7 +128,6 @@ int main(int argc, char *argv[])  {
 	We make a new socket on a new passive port because no more than 1 file transfer is permitted on 1 passive port.
 	*/
 	
-	/*For some reason the following code does not actually */
 	sendString("RETR README.txt\r\n", strlen("RETR README.txt\r\n"), sd); 
 	receive(buffer, sizeof(buffer), sd);				//Recieve data from socket
 	system("pause");
@@ -164,7 +163,7 @@ struct sockaddr_in createSocket(int port, char ip[]){
 	//Creation of the socket
 	memset(&servaddr, 0, sizeof(servaddr));
 	servaddr.sin_family = AF_INET;
-	servaddr.sin_addr.s_addr = inet_addr(ip); // her skulle der stå argv[1] ved ipadressen dog erstattet vi den med ip addressen til den server vi skal kommunikere med
+	servaddr.sin_addr.s_addr = inet_addr(ip); // her skulle der stÃ¥ argv[1] ved ipadressen dog erstattet vi den med ip addressen til den server vi skal kommunikere med
 	// servaddr.sin_port = htons(portno); //convert to big-endian order
 	servaddr.sin_port = htons(port); //convert to big-endian order
 	return servaddr;
