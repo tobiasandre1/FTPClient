@@ -40,10 +40,9 @@ int openPassivePort(char buffer[], int bufferSize, int sd);
 int main(int argc, char *argv[])  {
 	/*
 	ftp servers:
-	ftp://ftp.gnupg.dk
-	"ftp.gnupg.dk"
 	"82.180.28.130"
 	"130.226.195.126"
+	"204.76.241.31"
 	*/
 
 
@@ -57,10 +56,11 @@ int main(int argc, char *argv[])  {
 	errorCheckWSAStartup(err); //Check if WSAStartup worked correctly
 
 
-	int sd, sd2, sd3, rc, rc2, rc3, port; //Variable declaration
-	struct sockaddr_in servaddr, passaddr, passaddr2; //Variable declaration, but these are socket adress structs
+	int sd, sd2, rc, rc2, port; //Variable declaration
+	struct sockaddr_in servaddr, passaddr; //Variable declaration, but these are socket adress structs
 	char buffer[4096];	//buffer for receiving data (is used to send with sendUserInput, but our program is not meant to accept user inputs, so that won't matter)
-	char bufferData[4096], bufferData2[4096];
+	char bufferData[4096];
+	char bufferData2[4096];
 
 	//Create a socket for the client
 	//If sd<0 there was an error in the creation of the socket
@@ -81,7 +81,6 @@ int main(int argc, char *argv[])  {
 	login(buffer, sizeof(buffer), sd); //Sequence of sendString and receive calls that logs in as USER anonymous with the PASS s@dtu.dk
 	
 	port = openPassivePort(buffer, sizeof(buffer), sd); //Get the passive port number with string manipulation of answer from PASV
-	
 	//Create new socket and connect again
 	if ((sd2 = socket(AF_INET, SOCK_STREAM, 0)) <0)
 	{
@@ -97,43 +96,47 @@ int main(int argc, char *argv[])  {
 	receive(bufferData, sizeof(bufferData), sd2); //Get file data from socket
 	*/
 
-	//sendString("RETR README.txt\r\n", strlen("RETR README.txt\r\n"), sd);
+	/*!FIRST FILE TRANSFER!*/
+	//sendString("RETR README.txt\r\n", strlen("RETR README.txt\r\n"), sd); //We have tested that this file can be downloaded in this position as well
 	sendString("RETR /pub/tbw/OROP_data_20170302.txt\r\n", strlen("RETR /pub/tbw/OROP_data_20170302.txt\r\n"), sd);
-	receive(buffer, sizeof(buffer), sd); //Recieve data from socket
-	system("pause");
-	receive(bufferData, sizeof(bufferData), sd2); //Recieve file data from socket
-	sendString("NOOP\r\n", strlen("NOOP\r\n"), sd);
-	receive(buffer, sizeof(buffer), sd); //Recieve data from socket
-	receive(buffer, sizeof(buffer), sd); //Recieve data from socket
+	receive(buffer, sizeof(buffer), sd);			//Recieve data from socket //RETR (did the transfer start?)
+	system("pause");								//Pause to make it easy to see initial commands
+	receive(bufferData, sizeof(bufferData), sd2);	//Recieve file data from socket
+	sendString("ABOR\r\n", strlen("ABOR\r\n"), sd); //ABOR is used to stop the data transfer in case there are more bytes than we can receive
+	receive(buffer, sizeof(buffer), sd);			//Recieve data from socket //DATA TRANSFER RESPONSE
+	receive(buffer, sizeof(buffer), sd);			//Recieve data from socket //ABOR RESPONSE
 	
-	system("pause");
+	system("pause"); //Pause before going to next data transfer
 
-	sendString("APPE WHAT\r\n", strlen("APPE WHAT\r\n"), sd); //TRYING TO UPLOAD FILE WITH APPEND (THIS WOULD BE A .txt FILE CONTAINING THE WORD WHAT)
-	receive(buffer, sizeof(buffer), sd); //Receive response from server //PERMISSION DENIED//
+	/*!ATTEMPT APPEND FILE TO SERVER!*/
+	sendString("APPE WHAT\r\n", strlen("APPE WHAT\r\n"), sd);	//TRYING TO UPLOAD FILE WITH APPEND (THIS WOULD BE A .txt FILE CONTAINING THE WORD WHAT)
+	receive(buffer, sizeof(buffer), sd);						//Receive response from server //PERMISSION DENIED//
 
+	system("pause"); //Pause before going to next data transfer
+
+	/*!SECOND FILE TRANSFER!*/
 	port = openPassivePort(buffer, sizeof(buffer), sd);
 	//Create new socket and connect again
-	if ((sd3 = socket(AF_INET, SOCK_STREAM, 0)) <0)
+	if ((sd2 = socket(AF_INET, SOCK_STREAM, 0)) <0)
 	{
 		perror("Problem in creating the socket"); //exit(2);
 	}
-	passaddr2 = createSocket(port, "204.76.241.31"); //Initialize socket
-	rc3 = connect(sd3, (struct sockaddr *) &passaddr2, sizeof(passaddr2));
-	errorCheckConnect(rc3);
-	
-	sendString("RETR README.txt\r\n", strlen("RETR README.txt\r\n"), sd3);
-	receive(buffer, sizeof(buffer), sd); //Recieve data from socket
-	system("pause");
-	receive(bufferData2, sizeof(bufferData2), sd3); //Recieve file data from socket
-	//sendString("NOOP\r\n", strlen("NOOP\r\n"), sd);
-	//receive(buffer, sizeof(buffer), sd); //Recieve data from socket
-	//receive(buffer, sizeof(buffer), sd); //Recieve data from socket
-
+	passaddr = createSocket(port, "204.76.241.31"); //Initialize socket
+	rc2 = connect(sd2, (struct sockaddr *) &passaddr, sizeof(passaddr));
+	errorCheckConnect(rc2);
 	/*
-	sendString("CWD /pub/outgoing\r\n", strlen("CWD /pub/outgoing\r\n"), sd);
-	receive(buffer, sizeof(buffer), sd); //Recieve data from socket
-	receive(buffer, sizeof(buffer), sd); //Recieve data from socket
+	We make a new socket on a new passive port because no more than 1 file transfer is permitted on 1 passive port.
 	*/
+	
+	/*For some reason the following code does not actually */
+	sendString("RETR README.txt\r\n", strlen("RETR README.txt\r\n"), sd); 
+	receive(buffer, sizeof(buffer), sd);				//Recieve data from socket
+	system("pause");
+	receive(bufferData2, sizeof(bufferData2), sd2);		//Recieve file data from socket
+	sendString("ABOR\r\n", strlen("ABOR\r\n"), sd);		//ABOR is used to stop the data transfer in case there are more bytes than we can receive
+	receive(buffer, sizeof(buffer), sd);				//Recieve data from socket //DATA TRANSFER RESPONSE
+	receive(buffer, sizeof(buffer), sd);				//Recieve data from socket //ABOR RESPONSE
+
 
 
 	
