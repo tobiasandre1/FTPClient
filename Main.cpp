@@ -17,6 +17,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <string>
 
 #pragma comment(lib, "ws2_32.lib")
 
@@ -31,6 +32,7 @@ void sendUserInput(char buffer[], int sd);					//Let user type in command line a
 void sendString(char buffer[], int bufferSize, int sd);		//Sends a string to the FTP server
 void receive(char buffer[], int bufferSize, int sd);		//Receive data from socket
 void login(char buffer[], int bufferSize, int sd);
+int openPassivePort(char buffer[], int bufferSize, int sd);
 
 #define SERV_PORT 21
 #define MAX_MSG 100
@@ -46,8 +48,8 @@ int main(int argc, char *argv[])  {
 	errorCheckWSAStartup(err); //Check if WSAStartup worked correctly
 
 
-	int sd, rc, port;
-	struct sockaddr_in servaddr;
+	int sd, sd2, rc, rc2, port;
+	struct sockaddr_in servaddr, passaddr;
 	char buffer[4096];	//buffer for sending and receiving data
 
 	//Create a socket for the client
@@ -58,7 +60,7 @@ int main(int argc, char *argv[])  {
 	}
 	
 	port = SERV_PORT;
-	servaddr = createSocket(port, "130.226.195.126"); //Initialize socket
+	servaddr = createSocket(port, argv[0] != NULL ? "130.226.195.126" : argv[0]); //Initialize socket
 
 	//connect server method
 	rc = connect(sd, (struct sockaddr *) &servaddr, sizeof(servaddr));
@@ -66,6 +68,20 @@ int main(int argc, char *argv[])  {
 
 	receive(buffer, sizeof(buffer), sd);
 	login(buffer, sizeof(buffer), sd);
+
+	port = openPassivePort(buffer, sizeof(buffer), sd);
+
+	//Create new socket and connect again
+	if ((sd2 = socket(AF_INET, SOCK_STREAM, 0)) <0)
+	{
+		perror("Problem in creating the socket"); //exit(2);
+	}
+	passaddr = createSocket(port, argv[0] != NULL ? "130.226.195.126" : argv[0]); //Initialize socket
+	rc2 = connect(sd2, (struct sockaddr *) &passaddr, sizeof(passaddr));
+	errorCheckConnect(rc2);
+
+	//receive(buffer, sizeof(buffer), sd); //Recieve data from socket
+
 
 	while (1){
 		sendUserInput(buffer, sd); //Let user type in the command line and send the data to the socket
@@ -100,6 +116,9 @@ void errorCheckConnect(int check){
 		perror("cannot connect");
 		exit(1);
 	}
+	else{
+		printf("%s\n", "Connected.");
+	}
 }
 
 void sendUserInput(char buffer[], int sd){
@@ -114,6 +133,7 @@ void sendUserInput(char buffer[], int sd){
 
 void sendString(char buffer[], int bufferSize, int sd){
 	//strcat(buffer, "\r\n");
+	printf("%s", buffer);
 	send(sd, buffer, bufferSize, 0);
 }
 
@@ -133,6 +153,54 @@ void login(char buffer[], int bufferSize, int sd){
 	receive(buffer, bufferSize, sd);
 }
 
-int getPassivePort(){
-	return 0;
+int openPassivePort(char buffer[], int bufferSize, int sd){
+	sendString("PASV\r\n", strlen("PASV\r\n"), sd);
+	//code for receivind statement ""
+	int n;
+	n = recv(sd, buffer, bufferSize, 0);
+	buffer[n] = '\0';
+	//We have the buffer as a char array and can read from it
+
+	//We create new two arrays and two integers to store our numbers
+	char add_number[3] = { '0', '0', '0' };
+	char multiply_number[3] = { '0','0','0' };
+	int an;
+	int mn;
+
+	int j = 2; //Top place in number char arrays
+	int i = n - 5; //Buffer always follows the same pattern, so we start from here. Determined by trail/error
+	int target = i - 3; //Target is 3 smaller than i so that we can read max 3 numbers
+	for (i; i>target; i--){
+		if (isdigit(buffer[i])){ //If what we're reading is a number...
+			add_number[j] = buffer[i]; //add it to the char array
+		}
+		else{
+			break; //i (variable) will not have reached target and we stop this for loop
+		}
+		j--; //j counts down along with i
+	}
+	an = atoi(add_number); //Integer atoi is equal to value of string inside the corresponding char array
+
+	j = 2;
+	i--; //Skip the comma between the numbers
+	target = i - 3; //New target is 3 smaller than i. Length of array.
+	for (i; i>target; i--){ //Same for loop as before.
+		if (isdigit(buffer[i])){
+			multiply_number[j] = buffer[i];
+		}
+		else{
+			break;
+		}
+		j--;
+	}
+	mn = atoi(multiply_number); //Integer mn is equal to value of its corresponding char array
+
+	//Print response
+	printf("%s", buffer);
+	printf("%s", "Passive port... ");
+	printf("%d * 256 + ", mn);
+	printf("%d = ", an);
+	printf("%d\n", mn * 256 + an);
+
+	return mn * 256 + an; //Return port calculation result
 }
